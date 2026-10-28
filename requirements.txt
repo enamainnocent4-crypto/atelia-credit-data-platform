@@ -1,0 +1,7 @@
+# Dépendances Python du projet (Python 3.12)
+# Installation : py -3.12 -m venv .venv  puis  .\.venv\Scripts\Activate.ps1  puis  pip install -r requirements.txt
+
+# Étape 2 : génération des données synthétiques
+Faker==40.43.0
+numpy==2.3.5
+pandas==2.3.3

@@ -45,7 +45,7 @@ Power BI (tableau de bord de pilotage)
 
 ## Démarrage rapide
 
-Prérequis : Docker Desktop lancé.
+Prérequis : Docker Desktop lancé, Python 3.12.
 
 ```bash
 cp .env.example .env        # puis changer le mot de passe dans .env
@@ -53,14 +53,38 @@ docker compose up -d        # démarre PostgreSQL
 docker compose ps           # le service doit être "healthy"
 ```
 
+La base est exposée sur le port **55432** (et non 5432) pour ne pas entrer en conflit avec un PostgreSQL déjà installé sur le poste. Le port se change dans `.env` (`POSTGRES_PORT`).
+
+Connexion depuis un client SQL (DBeaver…) : hôte `localhost`, port `55432`, base `atelia_dw`, utilisateur `atelia`, mot de passe du `.env`.
+
+## Données synthétiques
+
+```bash
+py -3.12 -m venv .venv
+.\.venv\Scripts\Activate.ps1          # Windows PowerShell
+pip install -r requirements.txt
+python -m data_generator.generate
+```
+
+Le générateur simule 24 mois d'activité (novembre 2024 à octobre 2026) dans l'ordre chronologique : client → demande → décision → décaissement → échéancier → paiements. Une graine fixe rend les données reproductibles à l'identique.
+
+| Dossier de sortie (`data/generated/`) | Fichiers | Rôle |
+| --- | --- | --- |
+| `reference/` | `branches.csv`, `products.csv` | Référentiels (12 agences, 4 produits) |
+| `crm/` | `customers.csv` | Export CRM (~5 200 clients fictifs) |
+| `core_banking/` | `applications.csv`, `loans.csv`, `installments.csv`, `payments.csv` | Système bancaire central, servi par l'API |
+| `_ground_truth/` | `customer_profiles.csv`, `injected_anomalies.csv` | Vérité cachée, pour valider les tests de qualité |
+
+Profils de clients : 65 % de bons payeurs, 25 % de retards qui se régularisent, 10 % de ruptures de paiement. Environ 170 anomalies sont injectées volontairement (doublons, montants négatifs, agence inconnue, paiement antérieur au décaissement) : les tests dbt doivent toutes les détecter.
+
 ## Stack
 
-Python 3.12 · PostgreSQL 16 · dbt · FastAPI · Power BI · Docker Compose · pytest · GitHub Actions
+Python 3.12 (pandas, NumPy, Faker) · PostgreSQL 16 · dbt · FastAPI · Power BI · Docker Compose · pytest · GitHub Actions
 
 ## Avancement
 
 - [x] Étape 0 — Cadrage métier
-- [ ] Étape 1 — Environnement
+- [x] Étape 1 — Environnement
 - [ ] Étape 2 — Données synthétiques
 - [ ] Étape 3 — Sources
 - [ ] Étape 4 — Ingestion
