@@ -1,0 +1,13 @@
+# Fins de ligne : LF dans le dépôt pour tous les fichiers texte.
+# Les conteneurs Docker tournent sous Linux : un script en CRLF (Windows) peut y échouer.
+* text=auto eol=lf
+
+# Scripts propres à Windows : CRLF
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+
+# Fichiers binaires : jamais convertis
+*.pbix binary
+*.png binary
+*.jpg binary
+*.zip binary
