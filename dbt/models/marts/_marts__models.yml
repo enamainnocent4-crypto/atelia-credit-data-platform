@@ -75,3 +75,35 @@ models:
               arguments: {to: ref('dim_date'), field: date_day}
       - name: amount
         data_tests: [positive_value]
+
+  - name: fact_loan_balance_monthly
+    description: "Encours mensuel. Grain : un prêt à une fin de mois (photo périodique)."
+    columns:
+      - name: loan_month_id
+        data_tests: [unique, not_null]
+      - name: customer_sk
+        data_tests:
+          - not_null
+          - relationships:
+              arguments: {to: ref('dim_customer'), field: customer_sk}
+      - name: month_end
+        data_tests:
+          - relationships:
+              arguments: {to: ref('dim_date'), field: date_day}
+      - name: product_code
+        data_tests:
+          - relationships:
+              arguments: {to: ref('dim_product'), field: product_code}
+      - name: loan_status
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ["CURRENT", "LATE", "DEFAULT", "WRITTEN_OFF", "CLOSED"]
+      - name: refinancing_cost
+        data_tests: [not_null]
+
+  - name: kpi_portfolio_monthly
+    description: "Indicateurs du portefeuille calculés en SQL. Grain : un mois. Référence pour valider les mesures DAX."
+    columns:
+      - name: month_end
+        data_tests: [unique, not_null]

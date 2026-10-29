@@ -12,7 +12,15 @@ clean-targets: ["target", "dbt_packages"]
 
 vars:
   # Hypothèses métier, documentées et modifiables en un seul endroit
-  refinancing_spread: 0.01        # marge de refinancement au-dessus du €STR (1 point)
+  reporting_start_date: "2024-11-30"   # première fin de mois analysée
+  reporting_end_date: "2026-10-31"     # date d'arrêté (dernière fin de mois)
+  refinancing_spread: 0.01             # marge de refinancement au-dessus du €STR (1 point)
+  write_off_days: 180                  # passage en perte au-delà de 180 jours de retard
+  # Taux de provision par tranche de retard (logique inspirée d'IFRS 9, simplifiée)
+  provision_rate_current: 0.01         # aucun retard
+  provision_rate_1_30: 0.05            # 1 à 30 jours
+  provision_rate_31_90: 0.25           # 31 à 90 jours
+  provision_rate_over_90: 1.00         # plus de 90 jours (défaut)
 
 models:
   atelia_credit:

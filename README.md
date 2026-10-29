@@ -148,6 +148,19 @@ Total : **170 anomalies détectées pour 170 injectées** par le générateur (`
 | `dim_customer` | Dimension historisée (SCD 2) | Une version de client |
 | `fact_credit_application` | Faits, photo cumulative | Une demande de crédit (dépôt → décision → versement) |
 | `fact_payment` | Faits, transactionnelle | Un paiement reçu |
+| `fact_loan_balance_monthly` | Faits, photo périodique | Un prêt à une fin de mois |
+| `kpi_portfolio_monthly` | Agrégat de contrôle | Un mois (référence pour valider les mesures Power BI) |
+
+**Indicateurs de risque et de rentabilité** (`fact_loan_balance_monthly`) : encours, jours de retard et tranche de retard, PAR30, défaut (plus de 90 jours), provisions, passages en perte (plus de 180 jours), coût du risque, intérêts, frais de dossier, coût de refinancement et PNB.
+
+Hypothèses simplifiées, paramétrées dans `dbt/dbt_project.yml` (`vars`) :
+
+| Hypothèse | Valeur |
+| --- | --- |
+| Coût de refinancement | €STR moyen du mois + 1 point, sur l'encours moyen, base exact/360 |
+| Provisions par tranche de retard (logique inspirée d'IFRS 9) | 1 % à jour, 5 % de 1 à 30 jours, 25 % de 31 à 90 jours, 100 % au-delà |
+| Passage en perte | Plus de 180 jours de retard |
+| Coût du risque | Variation des provisions + passages en perte |
 
 **Traitement des anomalies** (couche `intermediate`) : les paiements en double sont dédoublonnés ; les montants négatifs et les paiements antérieurs au décaissement sont mis en quarantaine dans `audit.quarantined_records`, avec leur raison ; les agences inconnues sont rattachées au membre « Agence inconnue », pour qu'aucun fait ne soit perdu. Deux tests de réconciliation vérifient que chaque ligne reçue se retrouve soit dans les faits, soit en quarantaine.
 
@@ -171,7 +184,7 @@ Python 3.12 (pandas, NumPy, Faker, psycopg) · PostgreSQL 16 · dbt 1.11 · Fast
 - [x] Étape 3 — Sources
 - [x] Étape 4 — Ingestion
 - [x] Étape 5 — dbt staging
-- [ ] Étape 6 — Modèle en étoile
+- [x] Étape 6 — Modèle en étoile
 - [ ] Étape 7 — Qualité et intégration continue
 - [ ] Étape 8 — Power BI
 - [ ] Étape 9 — Documentation
