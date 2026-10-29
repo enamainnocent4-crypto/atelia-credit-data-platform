@@ -1,0 +1,23 @@
+# Configuration des outils Python du projet (tests et qualité du code).
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+markers = [
+    "integration: tests qui ont besoin de PostgreSQL rempli par le pipeline (lancés en fin de CI)",
+]
+addopts = "-ra"
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+extend-exclude = ["dbt"]
+
+[tool.ruff.lint]
+# E/W : style PEP 8   F : erreurs (variable inutilisée, import manquant...)
+# I : ordre des imports   B : pièges courants   UP : syntaxe Python moderne
+select = ["E", "W", "F", "I", "B", "UP"]
+
+[tool.ruff.lint.per-file-ignores]
+# Le référentiel des agences est plus lisible avec une agence par ligne
+"data_generator/config.py" = ["E501"]

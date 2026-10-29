@@ -98,7 +98,7 @@ def sample_application_dates(rng: np.random.Generator) -> list[date]:
     counts = rng.multinomial(cfg.N_APPLICATIONS, weights)
 
     dates = []
-    for month_start, n in zip(months, counts):
+    for month_start, n in zip(months, counts, strict=True):
         month_end = min(add_months(month_start, 1, 1) - timedelta(days=1), cfg.AS_OF_DATE)
         span = (month_end - month_start).days + 1
         dates += [month_start + timedelta(days=int(x)) for x in rng.integers(0, span, n)]

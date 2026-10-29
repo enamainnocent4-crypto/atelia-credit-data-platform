@@ -25,7 +25,7 @@ import sys
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 
 import psycopg
 
@@ -107,7 +107,7 @@ def load_ecb_incremental(conn, ctx: dict) -> Result:
 
 def run_source(conn, batch_id: str, source: str, mode: str, loader: Callable[[dict], Result],
                full_refresh: bool) -> tuple[str, int]:
-    started = datetime.now(timezone.utc)
+    started = datetime.now(UTC)
     ctx = {"source": source, "batch_id": batch_id, "loaded_at": started, "watermark_before": None}
     try:
         with conn.transaction():
@@ -121,7 +121,7 @@ def run_source(conn, batch_id: str, source: str, mode: str, loader: Callable[[di
             # Marque-page et données sont validés ENSEMBLE : impossible d'avoir l'un sans l'autre
             db.set_watermark(conn, source, result.watermark_after, started)
             db.write_log(conn, batch_id=batch_id, source_name=source, load_mode=mode,
-                         started_at=started, finished_at=datetime.now(timezone.utc),
+                         started_at=started, finished_at=datetime.now(UTC),
                          rows_loaded=result.rows, watermark_before=ctx["watermark_before"],
                          watermark_after=result.watermark_after, status="SUCCESS", error_message=None)
         log.info("%-22s %-12s %8d lignes   marque-page : %s", source, mode, result.rows, result.watermark_after or "-")
@@ -130,7 +130,7 @@ def run_source(conn, batch_id: str, source: str, mode: str, loader: Callable[[di
         log.error("%-22s ÉCHEC : %s", source, exc)
         with conn.transaction():
             db.write_log(conn, batch_id=batch_id, source_name=source, load_mode=mode,
-                         started_at=started, finished_at=datetime.now(timezone.utc), rows_loaded=0,
+                         started_at=started, finished_at=datetime.now(UTC), rows_loaded=0,
                          watermark_before=ctx["watermark_before"], watermark_after=None,
                          status="FAILED", error_message=str(exc)[:1000])
         return "FAILED", 0

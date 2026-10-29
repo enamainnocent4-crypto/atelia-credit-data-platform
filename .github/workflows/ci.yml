@@ -1,0 +1,101 @@
+# Intégration continue d'Atelia Crédit : à chaque push et pull request,
+# GitHub vérifie le code puis rejoue TOUTE la chaîne, des sources aux indicateurs.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  # 1. Rapide (moins d'une minute) : qualité du code et tests unitaires, sans base de données
+  lint-and-unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Installer les dépendances
+        run: pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Vérifier le style du code (ruff)
+        run: ruff check .
+
+      - name: Tests unitaires (pytest)
+        run: pytest -m "not integration"
+
+  # 2. Complet : la plateforme entière sur un PostgreSQL temporaire créé par GitHub
+  end-to-end:
+    needs: lint-and-unit-tests
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: atelia
+          POSTGRES_PASSWORD: ci_password
+          POSTGRES_DB: atelia_dw
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U atelia -d atelia_dw"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: atelia
+      POSTGRES_PASSWORD: ci_password
+      POSTGRES_DB: atelia_dw
+      PGPASSWORD: ci_password
+      API_PORT: "8100"
+      CORE_BANKING_API_KEY: ci-test-key
+      DBT_SEND_ANONYMOUS_USAGE_STATS: "false"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Installer les dépendances
+        run: pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Créer les schémas raw, staging et marts
+        run: psql -h localhost -U atelia -d atelia_dw -f sql/init/01_create_schemas.sql
+
+      - name: Générer les données synthétiques
+        run: python -m data_generator.generate
+
+      - name: Démarrer l'API core banking
+        run: |
+          nohup uvicorn api.main:app --port 8100 > api.log 2>&1 &
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:8100/health && exit 0
+            sleep 1
+          done
+          cat api.log
+          exit 1
+
+      - name: Ingestion des fichiers CSV et de l'API
+        run: |
+          python -m ingestion.run --only csv
+          python -m ingestion.run --only api
+
+      - name: Taux €STR de test (pas d'appel à la BCE en CI)
+        run: psql -h localhost -U atelia -d atelia_dw -f tests/fixtures/ci_seed_ecb_rates.sql
+
+      - name: Transformations et tests dbt
+        run: python run_dbt.py build
+
+      - name: Tests d'intégration (pytest)
+        run: pytest -m integration

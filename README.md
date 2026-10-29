@@ -1,5 +1,7 @@
 # Atelia Crédit — Enterprise Data Platform & BI
 
+[![CI](https://github.com/enamainnocent4-crypto/atelia-credit-data-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/enamainnocent4-crypto/atelia-credit-data-platform/actions/workflows/ci.yml)
+
 Mini-plateforme décisionnelle de bout en bout pour un établissement fictif de microcrédit et de crédit à la consommation en France : des systèmes sources jusqu'aux indicateurs de pilotage dans Power BI.
 
 ## Objectif
@@ -172,6 +174,23 @@ python -m ingestion.run --only csv       # recharge l'export CRM
 python run_dbt.py build                  # le snapshot ajoute les nouvelles versions
 ```
 
+## Tests et intégration continue
+
+```bash
+pip install -r requirements-dev.txt
+ruff check .                      # style et erreurs courantes du code Python
+pytest -m "not integration"       # tests unitaires : générateur, API, client BCE (sans base)
+pytest -m integration             # tests d'intégration : base remplie par le pipeline et dbt
+```
+
+À chaque push, GitHub Actions (`.github/workflows/ci.yml`) :
+
+1. vérifie le code avec ruff et lance les tests unitaires ;
+2. crée un PostgreSQL temporaire, génère les données, démarre l'API, lance l'ingestion, puis `dbt build` ;
+3. lance les tests d'intégration, dont la mesure d'efficacité des tests de qualité : **chaque anomalie injectée doit être détectée par dbt**.
+
+En CI, l'API de la BCE est remplacée par un taux fixe (`tests/fixtures/ci_seed_ecb_rates.sql`) : un test ne doit échouer que si le code du projet est cassé, pas parce qu'un service externe est indisponible.
+
 ## Stack
 
 Python 3.12 (pandas, NumPy, Faker, psycopg) · PostgreSQL 16 · dbt 1.11 · FastAPI · Power BI · Docker Compose · pytest · GitHub Actions
@@ -185,6 +204,6 @@ Python 3.12 (pandas, NumPy, Faker, psycopg) · PostgreSQL 16 · dbt 1.11 · Fast
 - [x] Étape 4 — Ingestion
 - [x] Étape 5 — dbt staging
 - [x] Étape 6 — Modèle en étoile
-- [ ] Étape 7 — Qualité et intégration continue
+- [x] Étape 7 — Qualité et intégration continue
 - [ ] Étape 8 — Power BI
 - [ ] Étape 9 — Documentation

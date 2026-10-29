@@ -1,0 +1,5 @@
+# Outils de développement : tests et qualité du code.
+# Installation : pip install -r requirements.txt -r requirements-dev.txt
+pytest==9.2.0
+ruff==0.17.3
+httpx2==2.16.0
