@@ -21,3 +21,4 @@ data/generated/
 .idea/
 .DS_Store
 Thumbs.db
+dbt/.user.yml

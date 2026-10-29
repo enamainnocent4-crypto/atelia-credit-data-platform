@@ -1,0 +1,130 @@
+version: 2
+
+# Tests de qualité du staging.
+# - severity: error -> règle structurelle ; si elle casse, on s'arrête.
+# - severity: warn  -> anomalie connue de la source : on la détecte, on l'enregistre
+#   dans le schéma audit, et on la traitera à l'étape 6 (marts).
+
+models:
+  - name: stg_reference__branches
+    description: Agences du réseau, une ligne par agence.
+    columns:
+      - name: branch_code
+        data_tests: [unique, not_null]
+
+  - name: stg_reference__products
+    description: Catalogue des produits de crédit.
+    columns:
+      - name: product_code
+        data_tests: [unique, not_null]
+
+  - name: stg_crm__customers
+    description: Clients, une ligne par client.
+    columns:
+      - name: customer_id
+        data_tests: [unique, not_null]
+      - name: customer_segment
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ["particulier", "professionnel"]
+      - name: home_branch_code
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('stg_reference__branches')
+                field: branch_code
+
+  - name: stg_core_banking__applications
+    description: Demandes de crédit, grain identique à la source.
+    columns:
+      - name: application_id
+        data_tests: [unique, not_null]
+      - name: customer_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_crm__customers')
+                field: customer_id
+      - name: branch_code
+        description: "Code agence. Anomalie connue de la source : codes absents du référentiel."
+        data_tests:
+          - relationships:
+              name: applications_branch_code_exists_in_referential
+              arguments:
+                to: ref('stg_reference__branches')
+                field: branch_code
+              config:
+                severity: warn
+      - name: product_code
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('stg_reference__products')
+                field: product_code
+      - name: requested_amount
+        description: "Montant demandé. Anomalie connue de la source : montants négatifs."
+        data_tests:
+          - positive_value:
+              name: applications_requested_amount_is_positive
+              config:
+                severity: warn
+      - name: application_status
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ["APPROVED", "REJECTED", "PENDING"]
+
+  - name: stg_core_banking__loans
+    description: Prêts décaissés, une ligne par prêt.
+    columns:
+      - name: loan_id
+        data_tests: [unique, not_null]
+      - name: application_id
+        data_tests:
+          - unique
+          - relationships:
+              arguments:
+                to: ref('stg_core_banking__applications')
+                field: application_id
+      - name: principal_amount
+        data_tests: [positive_value]
+
+  - name: stg_core_banking__installments
+    description: Échéancier, une ligne par mensualité due.
+    columns:
+      - name: installment_id
+        data_tests: [unique, not_null]
+      - name: loan_id
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('stg_core_banking__loans')
+                field: loan_id
+
+  - name: stg_core_banking__payments
+    description: Paiements reçus, grain identique à la source (doublons compris).
+    columns:
+      - name: payment_id
+        description: "Identifiant du paiement. Anomalie connue de la source : paiements en double."
+        data_tests:
+          - not_null
+          - unique:
+              name: payments_payment_id_is_unique
+              config:
+                severity: warn
+      - name: installment_id
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('stg_core_banking__installments')
+                field: installment_id
+      - name: amount
+        data_tests: [positive_value]
+
+  - name: stg_ecb__estr_rates
+    description: Taux €STR quotidien de la BCE.
+    columns:
+      - name: rate_date
+        data_tests: [unique, not_null]

@@ -1,0 +1,25 @@
+# Projet dbt d'Atelia Crédit : transformations raw -> staging -> marts
+name: atelia_credit
+version: "1.0.0"
+profile: atelia_credit
+
+model-paths: ["models"]
+test-paths: ["tests"]
+macro-paths: ["macros"]
+target-path: "target"
+clean-targets: ["target", "dbt_packages"]
+
+models:
+  atelia_credit:
+    staging:
+      # Le staging nettoie et type la donnée brute, sans calcul métier.
+      # En vues : toujours à jour, rien à recharger.
+      +schema: staging
+      +materialized: view
+
+data_tests:
+  atelia_credit:
+    # Chaque test qui échoue enregistre les lignes fautives dans le schéma
+    # « audit » : on peut les consulter, les compter et les expliquer.
+    +store_failures: true
+    +schema: audit

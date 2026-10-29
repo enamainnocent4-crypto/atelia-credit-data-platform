@@ -1,0 +1,48 @@
+version: 2
+
+# Les tables de la couche raw, chargées par le pipeline d'ingestion (étape 4).
+# Déclarer les sources permet d'écrire {{ source('core_banking', 'loans') }} au lieu
+# d'un nom de table en dur, et de dessiner le lignage complet dans la documentation.
+
+sources:
+  - name: reference
+    description: Référentiels internes, livrés en fichiers CSV (rechargement complet).
+    schema: raw
+    tables:
+      - name: branches
+        description: Agences du réseau Atelia Crédit.
+      - name: products
+        description: Catalogue des produits de crédit.
+
+  - name: crm
+    description: Export du CRM (fichier CSV, rechargement complet).
+    schema: raw
+    tables:
+      - name: customers
+        description: Clients d'Atelia Crédit.
+
+  - name: core_banking
+    description: Système bancaire central, lu par son API (chargement incrémental).
+    schema: raw
+    # Fraîcheur : on alerte si le dernier chargement date de plus de 24 h.
+    # Commande : python run_dbt.py source freshness
+    loaded_at_field: _loaded_at
+    freshness:
+      warn_after: {count: 24, period: hour}
+      error_after: {count: 72, period: hour}
+    tables:
+      - name: applications
+        description: Demandes de crédit.
+      - name: loans
+        description: Prêts accordés et décaissés.
+      - name: installments
+        description: Échéancier de chaque prêt (une ligne par mensualité due).
+      - name: payments
+        description: Paiements reçus.
+
+  - name: ecb
+    description: API publique de la Banque centrale européenne (chargement incrémental).
+    schema: raw
+    tables:
+      - name: ecb_estr_rates
+        description: Taux €STR quotidien (série EST.B.EU000A2X2A25.WT), en pourcentage.

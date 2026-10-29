@@ -1,0 +1,14 @@
+# Connexion de dbt à PostgreSQL. Aucun secret ici : tout est lu dans .env
+# (chargé par le lanceur run_dbt.py, à la racine du projet).
+atelia_credit:
+  target: dev
+  outputs:
+    dev:
+      type: postgres
+      host: "{{ env_var('POSTGRES_HOST', 'localhost') }}"
+      port: "{{ env_var('POSTGRES_PORT', '55432') | int }}"
+      dbname: "{{ env_var('POSTGRES_DB') }}"
+      user: "{{ env_var('POSTGRES_USER') }}"
+      password: "{{ env_var('POSTGRES_PASSWORD') }}"
+      schema: staging
+      threads: 4

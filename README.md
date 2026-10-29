@@ -56,6 +56,7 @@ python -m data_generator.generate     # 1. génère les données sources
 docker compose up -d --build          # 2. démarre PostgreSQL et l'API
 docker compose ps                     # les deux services doivent être "healthy"
 python -m ingestion.run               # 3. charge les sources dans la couche raw
+python run_dbt.py build               # 4. construit le staging et lance les tests
 ```
 
 | Service | Adresse | Accès |
@@ -114,9 +115,32 @@ Principes :
 - **Idempotence** : chaque source est chargée dans une transaction, avec son marque-page. Une relance ne crée aucun doublon ; un échec n'écrit rien.
 - **Traçabilité** : chaque exécution est journalisée dans `raw._ingestion_log` et `logs/ingestion.log` ; les marque-pages sont dans `raw._ingestion_state`.
 
+## Transformations (dbt)
+
+```bash
+python run_dbt.py debug              # vérifier la connexion
+python run_dbt.py build              # construire les modèles et lancer les tests
+python run_dbt.py source freshness   # vérifier la fraîcheur des sources
+```
+
+`run_dbt.py` charge les identifiants du `.env` puis lance dbt : aucun secret n'est écrit dans `dbt/profiles.yml`.
+
+**Staging** (`dbt/models/staging/`, schéma `staging`, en vues) : un modèle par table `raw`, nommé `stg_<source>__<table>`. On y type les colonnes, on les renomme, sans supprimer aucune ligne : le grain reste celui de la source.
+
+**Tests de qualité** : 39 tests (unicité, non-nullité, intégrité référentielle, valeurs acceptées, montants positifs, cohérence des dates). Les quatre tests qui visent les anomalies connues de la source sont en mode avertissement et enregistrent les lignes fautives dans le schéma `audit` :
+
+| Test | Anomalie détectée | Lignes |
+| --- | --- | --- |
+| `payments_payment_id_is_unique` | Paiement en double | 120 |
+| `applications_requested_amount_is_positive` | Montant demandé négatif | 20 |
+| `applications_branch_code_exists_in_referential` | Agence inconnue | 15 |
+| `payments_not_before_disbursement` | Paiement antérieur au décaissement | 15 |
+
+Total : **170 anomalies détectées pour 170 injectées** par le générateur (`_ground_truth/injected_anomalies.csv`).
+
 ## Stack
 
-Python 3.12 (pandas, NumPy, Faker, psycopg) · PostgreSQL 16 · dbt · FastAPI · Power BI · Docker Compose · pytest · GitHub Actions
+Python 3.12 (pandas, NumPy, Faker, psycopg) · PostgreSQL 16 · dbt 1.11 · FastAPI · Power BI · Docker Compose · pytest · GitHub Actions
 
 ## Avancement
 
@@ -124,7 +148,7 @@ Python 3.12 (pandas, NumPy, Faker, psycopg) · PostgreSQL 16 · dbt · FastAPI �
 - [x] Étape 1 — Environnement
 - [x] Étape 2 — Données synthétiques
 - [x] Étape 3 — Sources
-- [ ] Étape 4 — Ingestion
+- [x] Étape 4 — Ingestion
 - [ ] Étape 5 — dbt staging
 - [ ] Étape 6 — Modèle en étoile
 - [ ] Étape 7 — Qualité et intégration continue
