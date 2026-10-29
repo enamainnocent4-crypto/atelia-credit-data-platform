@@ -33,7 +33,14 @@ def fetch_estr(start: date, end: date | None = None) -> pd.DataFrame:
         params["endPeriod"] = end.isoformat()
 
     response = requests.get(ECB_API_URL, params=params, timeout=TIMEOUT_SECONDS)
-    response.raise_for_status()  # erreur claire si la BCE répond 4xx ou 5xx
+    # Aucune cotation sur la période demandée (par exemple : le taux du jour
+    # n'est pas encore publié). Selon les cas, la BCE répond 404 ou 200 avec un
+    # corps vide (constaté le 29/10/2026). Dans les deux cas, ce n'est pas une erreur.
+    if response.status_code == 404:
+        return pd.DataFrame(columns=["rate_date", "estr_rate"])
+    response.raise_for_status()  # erreur claire pour les autres codes 4xx ou 5xx
+    if not response.text.strip():
+        return pd.DataFrame(columns=["rate_date", "estr_rate"])
 
     df = pd.read_csv(io.StringIO(response.text))
     expected = {"TIME_PERIOD", "OBS_VALUE"}

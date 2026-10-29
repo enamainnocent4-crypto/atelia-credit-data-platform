@@ -55,6 +55,7 @@ pip install -r requirements.txt
 python -m data_generator.generate     # 1. génère les données sources
 docker compose up -d --build          # 2. démarre PostgreSQL et l'API
 docker compose ps                     # les deux services doivent être "healthy"
+python -m ingestion.run               # 3. charge les sources dans la couche raw
 ```
 
 | Service | Adresse | Accès |
@@ -93,16 +94,36 @@ L'API core banking propose :
 - `GET /health` pour la supervision (sans authentification) ;
 - une documentation interactive générée automatiquement sur `/docs`.
 
+## Ingestion
+
+```bash
+python -m ingestion.run                  # chargement normal (incrémental)
+python -m ingestion.run --full-refresh   # tout recharger depuis zéro
+python -m ingestion.run --only api       # une seule famille : csv, api ou ecb
+```
+
+| Source | Table `raw` | Mode |
+| --- | --- | --- |
+| `reference/branches.csv`, `reference/products.csv`, `crm/customers.csv` | `branches`, `products`, `customers` | Rechargement complet |
+| API core banking | `applications`, `loans`, `installments`, `payments` | Incrémental (`updated_since`) |
+| API BCE | `ecb_estr_rates` | Incrémental (depuis la dernière date chargée) |
+
+Principes :
+
+- **Fidélité** : `raw` stocke les données telles que reçues (colonnes texte), anomalies comprises, avec trois colonnes techniques (`_loaded_at`, `_source`, `_batch_id`). Le typage et le nettoyage se font dans dbt.
+- **Idempotence** : chaque source est chargée dans une transaction, avec son marque-page. Une relance ne crée aucun doublon ; un échec n'écrit rien.
+- **Traçabilité** : chaque exécution est journalisée dans `raw._ingestion_log` et `logs/ingestion.log` ; les marque-pages sont dans `raw._ingestion_state`.
+
 ## Stack
 
-Python 3.12 (pandas, NumPy, Faker) · PostgreSQL 16 · dbt · FastAPI · Power BI · Docker Compose · pytest · GitHub Actions
+Python 3.12 (pandas, NumPy, Faker, psycopg) · PostgreSQL 16 · dbt · FastAPI · Power BI · Docker Compose · pytest · GitHub Actions
 
 ## Avancement
 
 - [x] Étape 0 — Cadrage métier
 - [x] Étape 1 — Environnement
 - [x] Étape 2 — Données synthétiques
-- [ ] Étape 3 — Sources
+- [x] Étape 3 — Sources
 - [ ] Étape 4 — Ingestion
 - [ ] Étape 5 — dbt staging
 - [ ] Étape 6 — Modèle en étoile
