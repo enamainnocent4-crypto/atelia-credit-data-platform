@@ -345,6 +345,9 @@ def main() -> None:
     applications_df = pd.DataFrame(applications)
     applications_df, payments, anomalies = inject_anomalies(rng, applications_df, loans, payments)
 
+    # Une nouvelle génération repart de zéro : l'ancienne sauvegarde de mise à jour CRM n'a plus de sens
+    (cfg.OUTPUT_DIR / "crm" / "customers_v1.csv").unlink(missing_ok=True)
+
     write_csv(build_branches(), "reference", "branches")
     write_csv(build_products(), "reference", "products")
     write_csv(customers_df.drop(columns="_profile"), "crm", "customers")

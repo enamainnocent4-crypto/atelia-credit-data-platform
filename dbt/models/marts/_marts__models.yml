@@ -1,0 +1,77 @@
+version: 2
+
+# Tests du modèle en étoile : ici, tout est BLOQUANT (severity: error par défaut).
+# Les anomalies ont été traitées dans intermediate ; le moindre écart est une vraie erreur.
+
+models:
+  - name: dim_date
+    description: Calendrier, une ligne par jour de 2024 à 2027.
+    columns:
+      - name: date_day
+        data_tests: [unique, not_null]
+
+  - name: dim_branch
+    description: Agences, plus le membre « Agence inconnue » (UNKNOWN).
+    columns:
+      - name: branch_code
+        data_tests: [unique, not_null]
+
+  - name: dim_product
+    description: Catalogue des produits de crédit.
+    columns:
+      - name: product_code
+        data_tests: [unique, not_null]
+
+  - name: dim_customer
+    description: Clients historisés (SCD de type 2), une ligne par version.
+    columns:
+      - name: customer_sk
+        description: Clé d'une version de client.
+        data_tests: [unique, not_null]
+      - name: customer_id
+        data_tests: [not_null]
+
+  - name: fact_credit_application
+    description: "Demandes de crédit. Grain : une ligne par demande (photo cumulative)."
+    columns:
+      - name: application_id
+        data_tests: [unique, not_null]
+      - name: customer_sk
+        description: Version du client valide à la date de la demande.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments: {to: ref('dim_customer'), field: customer_sk}
+      - name: branch_code
+        data_tests:
+          - relationships:
+              arguments: {to: ref('dim_branch'), field: branch_code}
+      - name: product_code
+        data_tests:
+          - relationships:
+              arguments: {to: ref('dim_product'), field: product_code}
+      - name: submitted_date
+        data_tests:
+          - relationships:
+              arguments: {to: ref('dim_date'), field: date_day}
+
+  - name: fact_payment
+    description: "Paiements reçus. Grain : une ligne par paiement fiable."
+    columns:
+      - name: payment_id
+        data_tests: [unique, not_null]
+      - name: customer_sk
+        data_tests:
+          - not_null
+          - relationships:
+              arguments: {to: ref('dim_customer'), field: customer_sk}
+      - name: branch_code
+        data_tests:
+          - relationships:
+              arguments: {to: ref('dim_branch'), field: branch_code}
+      - name: payment_date
+        data_tests:
+          - relationships:
+              arguments: {to: ref('dim_date'), field: date_day}
+      - name: amount
+        data_tests: [positive_value]

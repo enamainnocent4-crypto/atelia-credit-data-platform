@@ -56,7 +56,7 @@ python -m data_generator.generate     # 1. génère les données sources
 docker compose up -d --build          # 2. démarre PostgreSQL et l'API
 docker compose ps                     # les deux services doivent être "healthy"
 python -m ingestion.run               # 3. charge les sources dans la couche raw
-python run_dbt.py build               # 4. construit le staging et lance les tests
+python run_dbt.py build               # 4. construit staging, intermediate, marts et lance les tests
 ```
 
 | Service | Adresse | Accès |
@@ -138,6 +138,27 @@ python run_dbt.py source freshness   # vérifier la fraîcheur des sources
 
 Total : **170 anomalies détectées pour 170 injectées** par le générateur (`_ground_truth/injected_anomalies.csv`).
 
+## Modèle en étoile (marts)
+
+| Table | Type | Grain |
+| --- | --- | --- |
+| `dim_date` | Dimension | Un jour (2024 à 2027) |
+| `dim_branch` | Dimension | Une agence, plus le membre « Agence inconnue » |
+| `dim_product` | Dimension | Un produit de crédit |
+| `dim_customer` | Dimension historisée (SCD 2) | Une version de client |
+| `fact_credit_application` | Faits, photo cumulative | Une demande de crédit (dépôt → décision → versement) |
+| `fact_payment` | Faits, transactionnelle | Un paiement reçu |
+
+**Traitement des anomalies** (couche `intermediate`) : les paiements en double sont dédoublonnés ; les montants négatifs et les paiements antérieurs au décaissement sont mis en quarantaine dans `audit.quarantined_records`, avec leur raison ; les agences inconnues sont rattachées au membre « Agence inconnue », pour qu'aucun fait ne soit perdu. Deux tests de réconciliation vérifient que chaque ligne reçue se retrouve soit dans les faits, soit en quarantaine.
+
+**Historisation des clients** : un snapshot dbt (`snapshots/snap_customers.sql`) conserve chaque version d'un client quand sa ville, son revenu, son segment ou son e-mail change. Pour la démontrer :
+
+```bash
+python -m data_generator.crm_update      # 3 % des clients déménagent, 5 % changent de revenu
+python -m ingestion.run --only csv       # recharge l'export CRM
+python run_dbt.py build                  # le snapshot ajoute les nouvelles versions
+```
+
 ## Stack
 
 Python 3.12 (pandas, NumPy, Faker, psycopg) · PostgreSQL 16 · dbt 1.11 · FastAPI · Power BI · Docker Compose · pytest · GitHub Actions
@@ -149,7 +170,7 @@ Python 3.12 (pandas, NumPy, Faker, psycopg) · PostgreSQL 16 · dbt 1.11 · Fast
 - [x] Étape 2 — Données synthétiques
 - [x] Étape 3 — Sources
 - [x] Étape 4 — Ingestion
-- [ ] Étape 5 — dbt staging
+- [x] Étape 5 — dbt staging
 - [ ] Étape 6 — Modèle en étoile
 - [ ] Étape 7 — Qualité et intégration continue
 - [ ] Étape 8 — Power BI
