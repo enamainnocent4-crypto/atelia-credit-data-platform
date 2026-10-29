@@ -1,0 +1,10 @@
+# Ce que Docker n'envoie pas au moment de construire une image
+.git
+.venv
+.env
+data
+dbt
+powerbi
+docs
+tests
+**/__pycache__

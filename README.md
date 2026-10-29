@@ -48,23 +48,23 @@ Power BI (tableau de bord de pilotage)
 Prérequis : Docker Desktop lancé, Python 3.12.
 
 ```bash
-cp .env.example .env        # puis changer le mot de passe dans .env
-docker compose up -d        # démarre PostgreSQL
-docker compose ps           # le service doit être "healthy"
-```
-
-La base est exposée sur le port **55432** (et non 5432) pour ne pas entrer en conflit avec un PostgreSQL déjà installé sur le poste. Le port se change dans `.env` (`POSTGRES_PORT`).
-
-Connexion depuis un client SQL (DBeaver…) : hôte `localhost`, port `55432`, base `atelia_dw`, utilisateur `atelia`, mot de passe du `.env`.
-
-## Données synthétiques
-
-```bash
+cp .env.example .env                  # puis changer les secrets dans .env
 py -3.12 -m venv .venv
 .\.venv\Scripts\Activate.ps1          # Windows PowerShell
 pip install -r requirements.txt
-python -m data_generator.generate
+python -m data_generator.generate     # 1. génère les données sources
+docker compose up -d --build          # 2. démarre PostgreSQL et l'API
+docker compose ps                     # les deux services doivent être "healthy"
 ```
+
+| Service | Adresse | Accès |
+| --- | --- | --- |
+| PostgreSQL | `localhost:55432`, base `atelia_dw` | utilisateur `atelia`, mot de passe du `.env` |
+| API core banking | `http://localhost:8100/docs` | en-tête `X-API-Key` (clé du `.env`) |
+
+Les ports 55432 et 8100 évitent les conflits avec un PostgreSQL ou une autre API déjà présents sur le poste. Ils se changent dans `.env` (`POSTGRES_PORT`, `API_PORT`).
+
+## Données synthétiques
 
 Le générateur simule 24 mois d'activité (novembre 2024 à octobre 2026) dans l'ordre chronologique : client → demande → décision → décaissement → échéancier → paiements. Une graine fixe rend les données reproductibles à l'identique.
 
@@ -77,6 +77,22 @@ Le générateur simule 24 mois d'activité (novembre 2024 à octobre 2026) dans 
 
 Profils de clients : 65 % de bons payeurs, 25 % de retards qui se régularisent, 10 % de ruptures de paiement. Environ 170 anomalies sont injectées volontairement (doublons, montants négatifs, agence inconnue, paiement antérieur au décaissement) : les tests dbt doivent toutes les détecter.
 
+## Sources
+
+| Source | Type | Contenu |
+| --- | --- | --- |
+| `data/generated/reference/` | Fichiers CSV | Référentiels agences et produits |
+| `data/generated/crm/` | Fichier CSV | Export CRM des clients |
+| API core banking (`api/`) | API REST interne (FastAPI) | Demandes, prêts, échéances, paiements |
+| [ECB Data Portal](https://data.ecb.europa.eu/) (`ingestion/ecb_client.py`) | API REST publique | Taux €STR quotidien, pour le coût de refinancement |
+
+L'API core banking propose :
+
+- `GET /applications`, `/loans`, `/installments`, `/payments` : listes paginées (`limit`, `offset`), triées par date de mise à jour ;
+- le paramètre `updated_since` pour le chargement incrémental ;
+- `GET /health` pour la supervision (sans authentification) ;
+- une documentation interactive générée automatiquement sur `/docs`.
+
 ## Stack
 
 Python 3.12 (pandas, NumPy, Faker) · PostgreSQL 16 · dbt · FastAPI · Power BI · Docker Compose · pytest · GitHub Actions
@@ -85,7 +101,7 @@ Python 3.12 (pandas, NumPy, Faker) · PostgreSQL 16 · dbt · FastAPI · Power B
 
 - [x] Étape 0 — Cadrage métier
 - [x] Étape 1 — Environnement
-- [ ] Étape 2 — Données synthétiques
+- [x] Étape 2 — Données synthétiques
 - [ ] Étape 3 — Sources
 - [ ] Étape 4 — Ingestion
 - [ ] Étape 5 — dbt staging

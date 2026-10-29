@@ -1,0 +1,5 @@
+# Dépendances de l'image Docker de l'API (volontairement minimales)
+fastapi==0.162.0
+uvicorn==0.54.0
+pandas==2.3.3
+numpy==2.3.5
