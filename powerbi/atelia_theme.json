@@ -1,0 +1,19 @@
+{
+    "name": "Atelia Crédit",
+    "dataColors": ["#0B1F3A", "#1F4E8C", "#6C8EBF", "#8A94A6", "#B9C3D3", "#2E7D5B", "#E3A21A", "#C8102E"],
+    "background": "#FFFFFF",
+    "foreground": "#0B1F3A",
+    "tableAccent": "#1F4E8C",
+    "good": "#2E7D5B",
+    "neutral": "#E3A21A",
+    "bad": "#C8102E",
+    "maximum": "#C8102E",
+    "center": "#E3A21A",
+    "minimum": "#2E7D5B",
+    "textClasses": {
+        "title": {"fontFace": "Segoe UI Semibold", "fontSize": 14, "color": "#0B1F3A"},
+        "header": {"fontFace": "Segoe UI Semibold", "fontSize": 12, "color": "#0B1F3A"},
+        "label": {"fontFace": "Segoe UI", "fontSize": 10, "color": "#3B4659"},
+        "callout": {"fontFace": "Segoe UI Semibold", "fontSize": 26, "color": "#0B1F3A"}
+    }
+}

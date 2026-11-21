@@ -1,0 +1,54 @@
+createOrReplace
+
+	relationship rel_date_balance
+		fromColumn: fact_loan_balance_monthly.month_end
+		toColumn: dim_date.date_day
+
+	relationship rel_date_payment
+		fromColumn: fact_payment.payment_date
+		toColumn: dim_date.date_day
+
+	relationship rel_date_application_submitted
+		fromColumn: fact_credit_application.submitted_date
+		toColumn: dim_date.date_day
+
+	relationship rel_date_application_disbursed
+		isActive: false
+		fromColumn: fact_credit_application.disbursement_date
+		toColumn: dim_date.date_day
+
+	relationship rel_branch_balance
+		fromColumn: fact_loan_balance_monthly.branch_code
+		toColumn: dim_branch.branch_code
+
+	relationship rel_branch_payment
+		fromColumn: fact_payment.branch_code
+		toColumn: dim_branch.branch_code
+
+	relationship rel_branch_application
+		fromColumn: fact_credit_application.branch_code
+		toColumn: dim_branch.branch_code
+
+	relationship rel_product_balance
+		fromColumn: fact_loan_balance_monthly.product_code
+		toColumn: dim_product.product_code
+
+	relationship rel_product_payment
+		fromColumn: fact_payment.product_code
+		toColumn: dim_product.product_code
+
+	relationship rel_product_application
+		fromColumn: fact_credit_application.product_code
+		toColumn: dim_product.product_code
+
+	relationship rel_customer_balance
+		fromColumn: fact_loan_balance_monthly.customer_sk
+		toColumn: dim_customer.customer_sk
+
+	relationship rel_customer_payment
+		fromColumn: fact_payment.customer_sk
+		toColumn: dim_customer.customer_sk
+
+	relationship rel_customer_application
+		fromColumn: fact_credit_application.customer_sk
+		toColumn: dim_customer.customer_sk

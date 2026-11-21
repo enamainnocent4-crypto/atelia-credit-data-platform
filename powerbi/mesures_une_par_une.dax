@@ -1,0 +1,178 @@
+// Mesures DAX d'Atelia Crédit, une par une.
+// Pour chaque mesure : sélectionner la table indiquée dans le panneau Données,
+// cliquer sur « Nouvelle mesure », effacer « Mesure = », coller le bloc, puis Entrée.
+
+// ======================================================================
+// TABLE : fact_loan_balance_monthly  (19 mesures)
+// ======================================================================
+
+// --- 1. Dernier mois
+Dernier mois =
+MAX ( fact_loan_balance_monthly[month_end] )
+
+// --- 2. Encours
+Encours =
+VAR DernierMois = [Dernier mois]
+    RETURN
+        CALCULATE (
+            SUM ( fact_loan_balance_monthly[outstanding_principal] ),
+            dim_date[date_day] = DernierMois
+        )
+
+// --- 3. Encours PAR30
+Encours PAR30 =
+VAR DernierMois = [Dernier mois]
+    RETURN
+        CALCULATE (
+            SUM ( fact_loan_balance_monthly[par30_outstanding] ),
+            dim_date[date_day] = DernierMois
+        )
+
+// --- 4. Encours en défaut
+Encours en défaut =
+VAR DernierMois = [Dernier mois]
+    RETURN
+        CALCULATE (
+            SUM ( fact_loan_balance_monthly[default_outstanding] ),
+            dim_date[date_day] = DernierMois
+        )
+
+// --- 5. Provisions
+Provisions =
+VAR DernierMois = [Dernier mois]
+    RETURN
+        CALCULATE (
+            SUM ( fact_loan_balance_monthly[provision_amount] ),
+            dim_date[date_day] = DernierMois
+        )
+
+// --- 6. Prêts actifs
+Prêts actifs =
+VAR DernierMois = [Dernier mois]
+    RETURN
+        CALCULATE (
+            COUNTROWS ( fact_loan_balance_monthly ),
+            dim_date[date_day] = DernierMois,
+            NOT fact_loan_balance_monthly[loan_status] IN { "CLOSED", "WRITTEN_OFF" }
+        )
+
+// --- 7. Encours mois précédent
+Encours mois précédent =
+CALCULATE ( [Encours], DATEADD ( dim_date[date_day], -1, MONTH ) )
+
+// --- 8. PAR30 %
+PAR30 % =
+DIVIDE ( [Encours PAR30], [Encours] )
+
+// --- 9. Taux de défaut %
+Taux de défaut % =
+DIVIDE ( [Encours en défaut], [Encours] )
+
+// --- 10. Passages en perte
+Passages en perte =
+SUM ( fact_loan_balance_monthly[write_off_amount] )
+
+// --- 11. Coût du risque
+Coût du risque =
+SUM ( fact_loan_balance_monthly[cost_of_risk] )
+
+// --- 12. Coût du risque annualisé %
+Coût du risque annualisé % =
+VAR EncoursPrecedent = [Encours mois précédent]
+    RETURN
+        IF (
+            NOT ISBLANK ( EncoursPrecedent ),
+            DIVIDE ( 12 * [Coût du risque], ( [Encours] + EncoursPrecedent ) / 2 )
+        )
+
+// --- 13. Intérêts perçus
+Intérêts perçus =
+SUM ( fact_loan_balance_monthly[interest_received] )
+
+// --- 14. Frais de dossier
+Frais de dossier =
+SUM ( fact_loan_balance_monthly[fee_income] )
+
+// --- 15. Coût de refinancement
+Coût de refinancement =
+SUM ( fact_loan_balance_monthly[refinancing_cost] )
+
+// --- 16. PNB
+PNB =
+[Intérêts perçus] + [Frais de dossier] - [Coût de refinancement]
+
+// --- 17. Production
+Production =
+SUM ( fact_loan_balance_monthly[disbursed_amount] )
+
+// --- 18. Taux de régularisation %
+Taux de régularisation % =
+VAR EnRetardAvant =
+        CALCULATE (
+            COUNTROWS ( fact_loan_balance_monthly ),
+            NOT ISBLANK ( fact_loan_balance_monthly[previous_dpd_bucket] ),
+            fact_loan_balance_monthly[previous_dpd_bucket] <> "1. À jour"
+        )
+    VAR Regularises =
+        CALCULATE (
+            COUNTROWS ( fact_loan_balance_monthly ),
+            NOT ISBLANK ( fact_loan_balance_monthly[previous_dpd_bucket] ),
+            fact_loan_balance_monthly[previous_dpd_bucket] <> "1. À jour",
+            fact_loan_balance_monthly[dpd_bucket] = "1. À jour"
+        )
+    RETURN
+        DIVIDE ( Regularises, EnRetardAvant )
+
+// --- 19. Taux de bascule 1-30 vers 31-90 %
+Taux de bascule 1-30 vers 31-90 % =
+VAR Depart =
+        CALCULATE (
+            COUNTROWS ( fact_loan_balance_monthly ),
+            fact_loan_balance_monthly[previous_dpd_bucket] = "2. 1-30 jours"
+        )
+    VAR Bascule =
+        CALCULATE (
+            COUNTROWS ( fact_loan_balance_monthly ),
+            fact_loan_balance_monthly[previous_dpd_bucket] = "2. 1-30 jours",
+            fact_loan_balance_monthly[dpd_bucket] = "3. 31-90 jours"
+        )
+    RETURN
+        DIVIDE ( Bascule, Depart )
+
+// ======================================================================
+// TABLE : fact_credit_application  (4 mesures)
+// ======================================================================
+
+// --- 20. Demandes
+Demandes =
+COUNTROWS ( fact_credit_application )
+
+// --- 21. Taux d'acceptation %
+Taux d'acceptation % =
+DIVIDE (
+        SUM ( fact_credit_application[is_approved] ),
+        SUM ( fact_credit_application[is_decided] )
+    )
+
+// --- 22. Délai moyen d'instruction (jours)
+Délai moyen d'instruction (jours) =
+AVERAGE ( fact_credit_application[decision_delay_days] )
+
+// --- 23. Production décaissée
+Production décaissée =
+CALCULATE (
+        SUM ( fact_credit_application[disbursed_amount] ),
+        USERELATIONSHIP ( dim_date[date_day], fact_credit_application[disbursement_date] )
+    )
+
+// ======================================================================
+// TABLE : fact_payment  (2 mesures)
+// ======================================================================
+
+// --- 24. Paiements reçus
+Paiements reçus =
+SUM ( fact_payment[amount] )
+
+// --- 25. Part des paiements en retard %
+Part des paiements en retard % =
+AVERAGE ( fact_payment[is_late_payment] )

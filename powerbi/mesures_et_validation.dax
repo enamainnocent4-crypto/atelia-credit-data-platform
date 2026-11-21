@@ -1,0 +1,205 @@
+// ============================================================================
+// Atelia Crédit — mesures DAX et validation contre le SQL (kpi_portfolio_monthly)
+//
+// Mode d'emploi (Power BI Desktop, vue « Requête DAX ») :
+//   1. Coller tout ce fichier, puis Exécuter (F5) : le tableau de validation s'affiche.
+//      Les colonnes « Écart » doivent toutes valoir 0.
+//   2. Cliquer sur « Mettre à jour le modèle avec les modifications » : toutes les
+//      mesures définies ci-dessous sont ajoutées au modèle en une seule fois.
+// ============================================================================
+
+DEFINE
+
+    // ---------------------------------------------------------------- Encours
+    // L'encours est SEMI-ADDITIF : on l'additionne entre agences ou produits,
+    // jamais entre mois. Sur une période (un trimestre, une année), on prend
+    // donc la photo du DERNIER mois de la période.
+
+    MEASURE fact_loan_balance_monthly[Dernier mois] =
+        MAX ( fact_loan_balance_monthly[month_end] )
+
+    MEASURE fact_loan_balance_monthly[Encours] =
+        VAR DernierMois = [Dernier mois]
+        RETURN
+            CALCULATE (
+                SUM ( fact_loan_balance_monthly[outstanding_principal] ),
+                dim_date[date_day] = DernierMois
+            )
+
+    MEASURE fact_loan_balance_monthly[Encours PAR30] =
+        VAR DernierMois = [Dernier mois]
+        RETURN
+            CALCULATE (
+                SUM ( fact_loan_balance_monthly[par30_outstanding] ),
+                dim_date[date_day] = DernierMois
+            )
+
+    MEASURE fact_loan_balance_monthly[Encours en défaut] =
+        VAR DernierMois = [Dernier mois]
+        RETURN
+            CALCULATE (
+                SUM ( fact_loan_balance_monthly[default_outstanding] ),
+                dim_date[date_day] = DernierMois
+            )
+
+    MEASURE fact_loan_balance_monthly[Provisions] =
+        VAR DernierMois = [Dernier mois]
+        RETURN
+            CALCULATE (
+                SUM ( fact_loan_balance_monthly[provision_amount] ),
+                dim_date[date_day] = DernierMois
+            )
+
+    MEASURE fact_loan_balance_monthly[Prêts actifs] =
+        VAR DernierMois = [Dernier mois]
+        RETURN
+            CALCULATE (
+                COUNTROWS ( fact_loan_balance_monthly ),
+                dim_date[date_day] = DernierMois,
+                NOT fact_loan_balance_monthly[loan_status] IN { "CLOSED", "WRITTEN_OFF" }
+            )
+
+    MEASURE fact_loan_balance_monthly[Encours mois précédent] =
+        CALCULATE ( [Encours], DATEADD ( dim_date[date_day], -1, MONTH ) )
+
+    // ---------------------------------------------------------------- Risque
+
+    MEASURE fact_loan_balance_monthly[PAR30 %] =
+        DIVIDE ( [Encours PAR30], [Encours] )
+
+    MEASURE fact_loan_balance_monthly[Taux de défaut %] =
+        DIVIDE ( [Encours en défaut], [Encours] )
+
+    MEASURE fact_loan_balance_monthly[Passages en perte] =
+        SUM ( fact_loan_balance_monthly[write_off_amount] )
+
+    MEASURE fact_loan_balance_monthly[Coût du risque] =
+        SUM ( fact_loan_balance_monthly[cost_of_risk] )
+
+    // Coût du risque d'un mois, ramené à l'année, rapporté à l'encours moyen du mois
+    MEASURE fact_loan_balance_monthly[Coût du risque annualisé %] =
+        VAR EncoursPrecedent = [Encours mois précédent]
+        RETURN
+            IF (
+                NOT ISBLANK ( EncoursPrecedent ),
+                DIVIDE ( 12 * [Coût du risque], ( [Encours] + EncoursPrecedent ) / 2 )
+            )
+
+    // ---------------------------------------------------------------- Rentabilité (flux : additifs)
+
+    MEASURE fact_loan_balance_monthly[Intérêts perçus] =
+        SUM ( fact_loan_balance_monthly[interest_received] )
+
+    MEASURE fact_loan_balance_monthly[Frais de dossier] =
+        SUM ( fact_loan_balance_monthly[fee_income] )
+
+    MEASURE fact_loan_balance_monthly[Coût de refinancement] =
+        SUM ( fact_loan_balance_monthly[refinancing_cost] )
+
+    MEASURE fact_loan_balance_monthly[PNB] =
+        [Intérêts perçus] + [Frais de dossier] - [Coût de refinancement]
+
+    MEASURE fact_loan_balance_monthly[Production] =
+        SUM ( fact_loan_balance_monthly[disbursed_amount] )
+
+    // ---------------------------------------------------------------- Recouvrement
+
+    // Prêts en retard le mois précédent qui sont revenus à jour ce mois-ci
+    MEASURE fact_loan_balance_monthly[Taux de régularisation %] =
+        VAR EnRetardAvant =
+            CALCULATE (
+                COUNTROWS ( fact_loan_balance_monthly ),
+                NOT ISBLANK ( fact_loan_balance_monthly[previous_dpd_bucket] ),
+                fact_loan_balance_monthly[previous_dpd_bucket] <> "1. À jour"
+            )
+        VAR Regularises =
+            CALCULATE (
+                COUNTROWS ( fact_loan_balance_monthly ),
+                NOT ISBLANK ( fact_loan_balance_monthly[previous_dpd_bucket] ),
+                fact_loan_balance_monthly[previous_dpd_bucket] <> "1. À jour",
+                fact_loan_balance_monthly[dpd_bucket] = "1. À jour"
+            )
+        RETURN
+            DIVIDE ( Regularises, EnRetardAvant )
+
+    // Prêts de la tranche 1-30 jours qui glissent vers 31-90 jours le mois suivant
+    MEASURE fact_loan_balance_monthly[Taux de bascule 1-30 vers 31-90 %] =
+        VAR Depart =
+            CALCULATE (
+                COUNTROWS ( fact_loan_balance_monthly ),
+                fact_loan_balance_monthly[previous_dpd_bucket] = "2. 1-30 jours"
+            )
+        VAR Bascule =
+            CALCULATE (
+                COUNTROWS ( fact_loan_balance_monthly ),
+                fact_loan_balance_monthly[previous_dpd_bucket] = "2. 1-30 jours",
+                fact_loan_balance_monthly[dpd_bucket] = "3. 31-90 jours"
+            )
+        RETURN
+            DIVIDE ( Bascule, Depart )
+
+    // ---------------------------------------------------------------- Réseau d'agences (par date de dépôt)
+
+    MEASURE fact_credit_application[Demandes] =
+        COUNTROWS ( fact_credit_application )
+
+    MEASURE fact_credit_application[Taux d'acceptation %] =
+        DIVIDE (
+            SUM ( fact_credit_application[is_approved] ),
+            SUM ( fact_credit_application[is_decided] )
+        )
+
+    MEASURE fact_credit_application[Délai moyen d'instruction (jours)] =
+        AVERAGE ( fact_credit_application[decision_delay_days] )
+
+    // Même montant que [Production], mais calculé depuis les demandes :
+    // USERELATIONSHIP active la relation INACTIVE dim_date -> disbursement_date.
+    MEASURE fact_credit_application[Production décaissée] =
+        CALCULATE (
+            SUM ( fact_credit_application[disbursed_amount] ),
+            USERELATIONSHIP ( dim_date[date_day], fact_credit_application[disbursement_date] )
+        )
+
+    // ---------------------------------------------------------------- Paiements
+
+    MEASURE fact_payment[Paiements reçus] =
+        SUM ( fact_payment[amount] )
+
+    MEASURE fact_payment[Part des paiements en retard %] =
+        AVERAGE ( fact_payment[is_late_payment] )
+
+// ============================================================================
+// Validation : chaque mesure DAX doit donner le même chiffre que le calcul SQL.
+// ============================================================================
+
+EVALUATE
+VAR Comparaison =
+    ADDCOLUMNS (
+        SELECTCOLUMNS (
+            kpi_portfolio_monthly,
+            "Mois", kpi_portfolio_monthly[month_end],
+            "Encours SQL", kpi_portfolio_monthly[outstanding],
+            "PAR30 SQL", kpi_portfolio_monthly[par30_rate],
+            "Défaut SQL", kpi_portfolio_monthly[default_rate],
+            "PNB SQL", kpi_portfolio_monthly[net_banking_income],
+            "Production SQL", kpi_portfolio_monthly[production],
+            "Régularisation SQL", kpi_portfolio_monthly[regularization_rate]
+        ),
+        "Encours DAX", VAR m = [Mois] RETURN CALCULATE ( [Encours], dim_date[date_day] = m ),
+        "PAR30 DAX", VAR m = [Mois] RETURN CALCULATE ( [PAR30 %], dim_date[date_day] = m ),
+        "Défaut DAX", VAR m = [Mois] RETURN CALCULATE ( [Taux de défaut %], dim_date[date_day] = m ),
+        "PNB DAX", VAR m = [Mois] RETURN CALCULATE ( [PNB], dim_date[date_day] = m ),
+        "Production DAX", VAR m = [Mois] RETURN CALCULATE ( [Production], dim_date[date_day] = m ),
+        "Régularisation DAX", VAR m = [Mois] RETURN CALCULATE ( [Taux de régularisation %], dim_date[date_day] = m )
+    )
+RETURN
+    ADDCOLUMNS (
+        Comparaison,
+        "Écart encours", ROUND ( [Encours DAX] - [Encours SQL], 2 ),
+        "Écart PAR30", ROUND ( [PAR30 DAX] - [PAR30 SQL], 4 ),
+        "Écart défaut", ROUND ( [Défaut DAX] - [Défaut SQL], 4 ),
+        "Écart PNB", ROUND ( [PNB DAX] - [PNB SQL], 2 ),
+        "Écart production", ROUND ( [Production DAX] - [Production SQL], 2 ),
+        "Écart régularisation", ROUND ( [Régularisation DAX] - [Régularisation SQL], 4 )
+    )
+ORDER BY [Mois]
