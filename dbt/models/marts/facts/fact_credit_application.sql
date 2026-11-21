@@ -21,7 +21,8 @@ select
     case when l.loan_id is not null then 1 else 0 end               as is_disbursed,
 
     -- Mesures
-    a.requested_amount,
+    a.requested_amount,                                  -- vide si la saisie était invalide
+    a.is_requested_amount_valid,
     a.requested_duration_months,
     l.principal_amount                                   as disbursed_amount,
     l.fee_amount,

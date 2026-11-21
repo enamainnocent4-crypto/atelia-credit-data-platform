@@ -1,7 +1,10 @@
 {{ config(schema='audit', materialized='table') }}
 
--- Table de rejet : chaque ligne écartée des calculs, avec sa raison.
--- Rien ne disparaît sans laisser de trace.
+-- Table d'audit : chaque ligne écartée des calculs OU signalée, avec sa raison.
+-- Rien ne disparaît ni n'est corrigé sans laisser de trace.
+-- - payments : lignes ÉCARTÉES de fact_payment (doublons, paiements avant versement) ;
+-- - applications : demandes SIGNALÉES mais conservées dans fact_credit_application
+--   (montant demandé mis à vide, voir int_applications__validated).
 with duplicate_copies as (
     select
         payment_id,
@@ -25,6 +28,6 @@ where p.payment_date < l.disbursement_date
 union all
 
 select 'applications', application_id,
-       'Montant demandé négatif ou nul'
+       'Montant demandé négatif ou nul : montant mis à vide, demande conservée et signalée'
 from {{ ref('stg_core_banking__applications') }}
 where requested_amount <= 0

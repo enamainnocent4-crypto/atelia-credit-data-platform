@@ -54,6 +54,13 @@ models:
         data_tests:
           - relationships:
               arguments: {to: ref('dim_date'), field: date_day}
+      - name: is_requested_amount_valid
+        description: "0 si le montant demandé saisi était négatif ou nul (montant mis à vide, demande conservée)."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [0, 1]
 
   - name: fact_payment
     description: "Paiements reçus. Grain : une ligne par paiement fiable."
