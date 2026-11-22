@@ -4,7 +4,7 @@
 
 Mini-plateforme décisionnelle de bout en bout pour un établissement fictif de microcrédit et de crédit à la consommation en France : des systèmes sources jusqu'aux indicateurs de pilotage dans Power BI.
 
-![Page Direction générale du rapport Power BI](docs/images/page1_direction_generale.png)
+<img src="docs/images/page1_direction_generale.png" alt="Page Direction générale du rapport Power BI" width="800">
 
 ## Ce que démontre ce projet
 
@@ -44,6 +44,8 @@ Ingestion Python ──► PostgreSQL : raw ──► staging ──► marts (m
 Power BI (tableau de bord de pilotage)
 ```
 
+Schémas détaillés, rôle de chaque couche et décisions techniques : [docs/architecture.md](docs/architecture.md).
+
 | Dossier | Rôle |
 | --- | --- |
 | `data_generator/` | Génération des données synthétiques |
@@ -52,7 +54,7 @@ Power BI (tableau de bord de pilotage)
 | `dbt/` | Transformations `staging` et `marts`, tests de qualité |
 | `tests/` | Tests automatisés (pytest) |
 | `powerbi/` | Rapport Power BI, thème, mesures DAX et relations |
-| `docs/` | Documentation d'architecture et captures du rapport |
+| `docs/` | [Documentation d'architecture](docs/architecture.md) et captures du rapport |
 | `sql/init/` | Initialisation de la base (schémas) |
 
 ## Démarrage rapide
@@ -258,6 +260,6 @@ Python 3.12 (pandas, NumPy, Faker, psycopg) · PostgreSQL 16 · dbt 1.11 · Fast
 - [x] Étape 8 — Power BI
 - [ ] Étape 9 — Documentation (README, architecture, etc.)
 
-## Auteure
+## Contact
 
 ENAMA Innocent — [profil LinkedIn](https://www.linkedin.com/in/enama-innocent-501880327) · [GitHub](https://github.com/enamainnocent4-crypto)
